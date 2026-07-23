@@ -2,5 +2,6 @@
 __pycache__/
 .ipynb_checkpoints/
 .DS_Store
-data/processed/
+data/processed/*
+!data/processed/.gitkeep
 *.sqlite
