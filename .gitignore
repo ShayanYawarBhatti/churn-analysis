@@ -16,3 +16,4 @@ data/processed/*
 !data/processed/.gitkeep
 *.sqlite
 reports/build/
+reports/Thumbnail.png
