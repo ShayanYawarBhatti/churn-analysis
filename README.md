@@ -296,7 +296,6 @@ customer-churn-retention-analytics/
 │   ├── figures/
 │   │   ├── Notebook/                      # seven charts exported by the notebook
 │   │   └── report/                        # eight charts used in the PDF report
-│   ├── build/                             # report source (HTML/CSS + build scripts)
 │   └── Customer_Churn_Retention_Analysis_Report.pdf
 ├── requirements.txt
 └── README.md
@@ -305,15 +304,6 @@ customer-churn-retention-analytics/
 The notebook and the report present different views deliberately. The notebook carries the exploratory layer — monthly churn trend, churn by plan, and the correlation heatmap with its encoding-order comparison. The report carries the stakeholder layer — risk tier, acquisition channel, support ladder, top markets by absolute loss, and revenue exposure. Both use the same cleaned dataset, and every reported figure has been cross-checked against the source data.
 
 The report cover is not decoration either: it is the dataset's own Kaplan–Meier retention curve — 100% at signup, 78.3% still active at year one, 52.7% at year four — computed from the same cleaned file.
-
-To rebuild the PDF after re-running the notebook:
-
-```bash
-pip install weasyprint
-python reports/build/generate_report_figures.py   # the eight interior charts
-python reports/build/generate_cover_curve.py      # the cover retention curve
-python reports/build/build_report.py              # layout → PDF
-```
 
 ### Notebook structure
 
