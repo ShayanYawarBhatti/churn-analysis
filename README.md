@@ -106,12 +106,13 @@ Merging the three tables produced **102,551 rows from 100,000 customers.**
 
 The support table holds 18,718 tickets belonging to only 16,167 customers — 2,203 customers filed more than once. Joining on `customerid` caused these one-to-many matches to *fan out*, silently duplicating subscription records and inflating every downstream revenue and churn figure.
 
-The fix aggregated support to one row per customer **before** the join:
+The fix first filtered tickets to **pre-outcome** signals, then aggregated support to one row per customer **before** the join:
 
+- Kept only tickets that precede the outcome — for churned customers, those dated before the cancellation date; for active customers, those up to the fixed as-of date. A ticket logged on or after a cancellation cannot be an early warning, so it is excluded. This retains **16,002 of 18,718 tickets, covering 14,096 customers**
 - Created a `complaint_count` feature via `groupby().transform('count')`, preserving repeat-contact information rather than discarding it
-- Retained each customer's **most recent** ticket (`sort_values` + `drop_duplicates(keep='last')`), since the latest interaction best represents current escalation status and satisfaction
+- Retained each customer's **most recent** pre-outcome ticket (`sort_values` + `drop_duplicates(keep='last')`), since the latest interaction best represents current escalation status and satisfaction
 
-The corrected join returns exactly 100,000 rows. Both the broken and corrected merges are kept in the notebook as a before/after record.
+The corrected join returns exactly 100,000 rows, asserted in the notebook rather than merely narrated. Both the broken and corrected merges are kept as a before/after record.
 
 > This class of defect raises no error — it just quietly makes every number wrong. Validating row counts across a join is the check that catches it.
 
@@ -120,10 +121,10 @@ The corrected join returns exactly 100,000 rows. Both the broken and corrected m
 | Feature | Definition |
 |---|---|
 | `churn_flag` | 1 where a cancellation date exists |
-| `complaint_count` | Support tickets filed per customer |
+| `complaint_count` | Pre-outcome support tickets filed per customer |
 | `escalation_flag` | Numeric encoding of escalation status |
 | `tenure_days` | Days to cancellation, or to the fixed as-of date if active |
-| `churn_risk` | `churn_score` banded Low / Medium / High via `np.select` |
+| `churn_risk` | `churn_score` banded low / med / high (<50 / 50–70 / 70+) via `np.select` |
 | `support_state` | No contact / ticket filed / ticket escalated |
 
 ---
@@ -157,15 +158,17 @@ Two definitions worth noting. **Revenue lost** leads with share of total monthly
 
 ### 5.1 Contract structure is the primary driver
 
-![Churn rate by contract type](reports/figures/churn_rate_by_contract.png)
+![Churn rate by contract type](reports/figures/Notebook/churn_rate_by_contract.png)
 
 Monthly-contract customers churn at **50.80%** against **20.10%** for annual — a 2.5× gap across 40,966 and 59,034 customers respectively.
 
 The revenue consequence is disproportionate. Monthly contracts hold **38.4% of total monthly charges but account for 62.1% of all revenue lost to churn** ($269,154 of $433,107). Annual customers face a renewal decision once a year rather than twelve times, and contract terms are set by the business at the point of sale — making this the most controllable lever available.
 
+One caution, because the recommendation rides on it. Contract type is **chosen, not assigned**: subscribers willing to commit for twelve months are already more certain they want the service, and an annual subscriber largely *cannot* cancel mid-term, so part of the lower rate is definitional rather than behavioural. Both effects inflate the gap, which makes **30.7 points a ceiling on what migration can deliver, not an estimate of it.** The descriptive finding is unaffected — this is still where the losses are, and still identifiable at signup — but the causal claim belongs in a randomised pilot, which is how Recommendation 1 is specified.
+
 ### 5.2 Risk is front-loaded in the first year
 
-![Tenure distribution](reports/figures/tenure_distribution.png)
+![Tenure distribution](reports/figures/Notebook/tenure_distribution.png)
 
 Shown as a share of each group — necessary because the retained cohort is twice the size — the two distributions separate clearly. **38.6% of churned customers left within their first 180 days**, against 20.7% of retained customers still sitting in that band. At the other end, **15.6% of retained customers have passed four years versus just 4.1% of churners.** Median tenure is **275 days for churned against 570 for retained**.
 
@@ -173,7 +176,7 @@ This is a front-loaded churn hazard: risk peaks immediately after signup and dec
 
 ### 5.3 Plan and contract compound — and contract wins
 
-![Churn rate by plan and contract type](reports/figures/churn_by_plan_and_contract.png)
+![Churn rate by plan and contract type](reports/figures/Notebook/churn_by_plan_and_contract.png)
 
 Crossing the two strongest drivers shows they compound rather than act independently:
 
@@ -187,7 +190,7 @@ The critical read is the diagonal: an **annual Basic** customer (26.91%) retains
 
 ### 5.4 What actually relates to churn
 
-![Correlation heatmap](reports/figures/correlation_heatmap.png)
+![Correlation heatmap](reports/figures/Notebook/correlation_heatmap.png)
 
 Churn correlates most strongly with churn score (0.38), **contract type (−0.32)**, **lifetime value (−0.28)**, monthly charges (−0.24) and escalation status (0.20). CSAT (−0.16), plan tier (−0.18) and complaint volume (0.14) contribute in the expected directions. No single variable dominates — the drivers combine, which is what genuine behavioural data looks like.
 
@@ -202,13 +205,13 @@ Alphabetical ordering turns `churn_risk` into `high=0, low=1, med=2` — meaning
 
 ### 5.5 Volume grows, but the rate is the real story
 
-![Monthly churn trend](reports/figures/monthly_churn_trend.png)
+![Monthly churn trend](reports/figures/Notebook/monthly_churn_trend.png)
 
 Cancellations climb across the observation window, tracking the growth of the subscriber base itself — annual signups rose from 5,664 in 2019 to 27,638 in 2025. Because the denominator expands at the same time, the raw count measures scale as much as deterioration. A 3-month rolling average separates trend from noise, but the rate-based segment breakdowns remain the reliable read on retention health. This chart establishes volume context, not a verdict.
 
 ### 5.6 Geography follows urbanisation
 
-![Top 15 states by churn rate](reports/figures/churn_rate_by_state.png)
+![Top 15 states by churn rate](reports/figures/Notebook/churn_rate_by_state.png)
 
 Churn ranges from **15.52% in Vermont to 41.90% in the District of Columbia**, and the pattern is structural rather than random. The highest-churn markets are the most urbanised — DC, California (40.54%), New Jersey (39.82%), Arizona (39.47%), Florida (37.62%). The lowest are rural: Vermont, Maine (19.02%), Montana (19.52%). Dense markets give subscribers the most competing services and the least switching friction.
 
@@ -247,9 +250,13 @@ Basic churns at 42.69% on the lowest ARPU ($9.72) and lifetime value ($171). Det
 
 **Reproducibility.** Tenure for active customers is measured to a fixed `AS_OF_DATE` of 31 December 2025 rather than the current date. Measuring to "today" would cause reported tenure to drift upward on every run and silently contradict the written figures. Every number in this repository reproduces exactly from the source database.
 
+**Observational data, not an experiment.** Every segment here is self-selected — customers choose their contract term, plan tier and, in effect, their acquisition channel. Differences between segments therefore combine any effect of the attribute with the disposition of the people who choose it. The observed gaps are **upper bounds on what intervention can deliver**, which is why the report specifies contract migration as a randomised pilot rather than a settled result. The descriptive finding — that losses concentrate in identifiable, pre-observable segments — does not depend on the causal question and stands regardless.
+
 **Cumulative churn, not an annual rate.** The headline 32.68% is cumulative across a base with varying tenure — a 2019 joiner has had seven years in which to leave, a 2025 joiner only months. This is why churn by signup year appears to decline: it reflects exposure time, not improving retention. Comparing customers with equal exposure, 12-month churn is stable at 21–22% across every cohort.
 
-**Treatment of the supplied churn score.** `churn_score` is a pre-computed field in the source data, not a model built here. Its tiers separate meaningfully without being deterministic (18.92% / 37.51% / 62.84% observed churn), and it is used to demonstrate segmentation method. All primary conclusions rest on independently observable attributes — contract type, plan tier, acquisition channel, support activity, tenure, geography and revenue.
+**Treatment of the supplied churn score.** `churn_score` is a pre-computed field in the source data, not a model built here. Its tiers separate meaningfully without being deterministic (18.92% / 37.51% / 62.84% observed churn), and it is used to demonstrate segmentation method. It also correlates with `contract_type` at −0.68, which suggests it is partly *derived* from an attribute analysed directly elsewhere — so leading with it would re-report contract type under another name. All primary conclusions therefore rest on independently observable attributes — contract type, plan tier, acquisition channel, support activity, tenure, geography and revenue.
+
+**Exposure asymmetry in the support signal.** Counting only pre-outcome tickets means churned customers are observed for a shorter window than active ones (430 days against 745), so they have *less* opportunity to file a ticket at all. The bias runs against the finding: adjusted for exposure, churned customers file 0.65 pre-outcome tickets per 1,000 customer-days against 0.14 for retained — a 4.7× difference. The support ladder is a conservative reading, not an optimistic one.
 
 **Correlation on binary variables.** The escalation–churn correlation of 0.20 understates the relationship, as Pearson correlation between two binary variables is bounded by their base rates. The support ladder (29.09% → 43.59% → 67.77%) is the more faithful presentation of the same finding and is what the notebook leads with.
 
@@ -272,7 +279,7 @@ pip install -r requirements.txt
 jupyter notebook notebooks/churn_analysis.ipynb
 ```
 
-Run all cells top to bottom (~20 seconds). The notebook regenerates `data/processed/exported_churn_data.csv` and all seven figures in `reports/figures/`.
+Run all cells top to bottom (~20 seconds). The notebook regenerates `data/processed/exported_churn_data.csv` and all seven figures in `reports/figures/Notebook/`.
 
 ### Repository structure
 
@@ -286,10 +293,26 @@ customer-churn-intelligence/
 ├── notebooks/
 │   └── churn_analysis.ipynb               # full analysis
 ├── reports/
-│   ├── figures/                           # seven exported charts
+│   ├── figures/
+│   │   ├── Notebook/                      # seven charts exported by the notebook
+│   │   └── report/                        # eight charts used in the PDF report
+│   ├── build/                             # report source (HTML/CSS + build scripts)
 │   └── Subscription_Retention_Analysis_Report.pdf
 ├── requirements.txt
 └── README.md
+```
+
+The notebook and the report present different views deliberately. The notebook carries the exploratory layer — monthly churn trend, churn by plan, and the correlation heatmap with its encoding-order comparison. The report carries the stakeholder layer — risk tier, acquisition channel, support ladder, top markets by absolute loss, and revenue exposure. Both read the same cleaned dataset, so every number agrees by construction.
+
+The report cover is not decoration either: it is the dataset's own Kaplan–Meier retention curve — 100% at signup, 78.3% still active at year one, 52.7% at year four — computed from the same cleaned file.
+
+To rebuild the PDF after re-running the notebook:
+
+```bash
+pip install weasyprint
+python reports/build/generate_report_figures.py   # the eight interior charts
+python reports/build/generate_cover_curve.py      # the cover retention curve
+python reports/build/build_report.py              # layout → PDF
 ```
 
 ### Notebook structure
