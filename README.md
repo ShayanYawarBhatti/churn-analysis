@@ -8,7 +8,7 @@ The analysis runs end to end: SQL extraction, data cleaning, feature engineering
 
 `Python` · `pandas` · `NumPy` · `SQL / SQLite` · `matplotlib` · `seaborn` · `Jupyter`
 
-**Deliverables** — [Analysis notebook](notebooks/churn_analysis.ipynb) · [Business report (PDF)](reports/Subscription_Retention_Analysis_Report.pdf)
+**Deliverables** — [Analysis notebook](notebooks/churn_analysis.ipynb) · [Business report (PDF)](reports/Customer_Churn_Retention_Analysis_Report.pdf)
 
 ---
 
@@ -98,7 +98,7 @@ Each table was cleaned independently before joining.
 
 **Support** — dropped empty columns; converted `complaint_date` to datetime.
 
-Structural nulls were preserved as information: a missing cancellation date means an active customer, and a missing support field means a customer who never contacted support. Neither was imputed.
+Structural nulls were preserved as information: a missing cancellation date means an active customer, and a missing support field means a customer with no valid pre-outcome support contact. Neither was imputed.
 
 ### The join fan-out
 
@@ -124,8 +124,8 @@ The corrected join returns exactly 100,000 rows, asserted in the notebook rather
 | `complaint_count` | Pre-outcome support tickets filed per customer |
 | `escalation_flag` | Numeric encoding of escalation status |
 | `tenure_days` | Days to cancellation, or to the fixed as-of date if active |
-| `churn_risk` | `churn_score` banded low / med / high (<50 / 50–70 / 70+) via `np.select` |
-| `support_state` | No contact / ticket filed / ticket escalated |
+| `churn_risk` | `churn_score` banded low / med / high (<50 / 50–69 / 70+) via `np.select` |
+| `support_state` | No valid pre-outcome contact / ticket filed / ticket escalated |
 
 ---
 
@@ -239,7 +239,7 @@ With 58.5% of churn occurring in year one and a churned median tenure of 275 day
 **45.25% of support-contacting customers had their most recent ticket escalated** — an operational problem independent of churn that feeds directly into the highest-risk cohort. Establish whether the driver is product defect, policy friction, or agent authority, and track escalation rate as a retention metric rather than solely a support metric.
 
 **6 — Prioritise dense urban markets, volume-weighted.** *(Medium)*
-California (40.54%, 12,120 customers) is the single largest absolute loss, followed by Florida and New Jersey. Competition intensity in these markets argues for differentiated retention offers rather than a uniform national campaign.
+California (40.54%, 12,120 customers) is the single largest absolute loss, followed by Texas and Florida. Competition intensity in these markets argues for differentiated retention offers rather than a uniform national campaign.
 
 **7 — Reposition the Basic tier.** *(Medium)*
 Basic churns at 42.69% on the lowest ARPU ($9.72) and lifetime value ($171). Determine whether it under-delivers value or attracts low-intent customers, and consider restructuring it as a trial step with a defined upgrade path into Standard.
@@ -269,8 +269,8 @@ Basic churns at 42.69% on the lowest ARPU ($9.72) and lifetime value ($171). Det
 ## Reproducing This Analysis
 
 ```bash
-git clone https://github.com/ShayanYawarBhatti/customer-churn-intelligence.git
-cd customer-churn-intelligence
+git clone https://github.com/ShayanYawarBhatti/customer-churn-retention-analytics.git
+cd customer-churn-retention-analytics
 
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
@@ -284,7 +284,7 @@ Run all cells top to bottom (~20 seconds). The notebook regenerates `data/proces
 ### Repository structure
 
 ```
-customer-churn-intelligence/
+customer-churn-retention-analytics/
 ├── data/
 │   ├── raw/
 │   │   └── customer_churn.db              # source SQLite database (100k customers)
@@ -297,12 +297,12 @@ customer-churn-intelligence/
 │   │   ├── Notebook/                      # seven charts exported by the notebook
 │   │   └── report/                        # eight charts used in the PDF report
 │   ├── build/                             # report source (HTML/CSS + build scripts)
-│   └── Subscription_Retention_Analysis_Report.pdf
+│   └── Customer_Churn_Retention_Analysis_Report.pdf
 ├── requirements.txt
 └── README.md
 ```
 
-The notebook and the report present different views deliberately. The notebook carries the exploratory layer — monthly churn trend, churn by plan, and the correlation heatmap with its encoding-order comparison. The report carries the stakeholder layer — risk tier, acquisition channel, support ladder, top markets by absolute loss, and revenue exposure. Both read the same cleaned dataset, so every number agrees by construction.
+The notebook and the report present different views deliberately. The notebook carries the exploratory layer — monthly churn trend, churn by plan, and the correlation heatmap with its encoding-order comparison. The report carries the stakeholder layer — risk tier, acquisition channel, support ladder, top markets by absolute loss, and revenue exposure. Both use the same cleaned dataset, and every reported figure has been cross-checked against the source data.
 
 The report cover is not decoration either: it is the dataset's own Kaplan–Meier retention curve — 100% at signup, 78.3% still active at year one, 52.7% at year four — computed from the same cleaned file.
 
@@ -333,4 +333,4 @@ python reports/build/build_report.py              # layout → PDF
 
 A formal stakeholder report covering the complete analysis — executive summary, segment deep-dives, revenue impact, prioritised recommendations, and methodology appendices — is available here:
 
-**[→ Subscription Retention Analysis (PDF)](reports/Subscription_Retention_Analysis_Report.pdf)**
+**[→ Customer Churn & Retention Analysis (PDF)](reports/Customer_Churn_Retention_Analysis_Report.pdf)**
