@@ -1,4 +1,4 @@
-# Customer Churn & Retention Intelligence
+# Customer Churn & Retention Analytics
 
 **End-to-end churn analysis for a 100,000-subscriber streaming business — identifying who leaves, why, and what it costs.**
 
